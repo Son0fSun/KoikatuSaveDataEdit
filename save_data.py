@@ -18,20 +18,28 @@ class KoikatuSaveData:
 
 
     def _load(self, file):
-        self.b_unknown01 = file.read(7)
+        self.version_length = file.read(1)
+        self.b_version = file.read(int.from_bytes(self.version_length, byteorder='big'))
+        self.version_num = self.b_version.decode("utf-8")
         self.school = self._read_utf8_string(file)
-
+        
         self.b_unknown02 = file.read(17)
-
         # split character data
         chara_part = file.read()
+        if b'\x64\x00\x00\x00\x12\xe3\x80\x90KoiKatuChara\xe3\x80\x91' in chara_part:
+            CHARA_HEADER = b'\x64\x00\x00\x00\x12\xe3\x80\x90KoiKatuChara\xe3\x80\x91'
+        elif b'\x64\x00\x00\x00\x14\xe3\x80\x90KoiKatuCharaSP\xe3\x80\x91' in chara_part:
+            CHARA_HEADER = b'\x64\x00\x00\x00\x14\xe3\x80\x90KoiKatuCharaSP\xe3\x80\x91'
+        else:
+            print("Could not parse savefile properly. Exiting.")
+            exit()
         chara_data = chara_part.split(CHARA_HEADER)
 
         self.characters = []
         count = 0
         for data in chara_data:
             if data:
-                chara = KoikatuCharacter(io.BytesIO(CHARA_HEADER + data), False, count == 0)
+                chara = KoikatuCharacter(io.BytesIO(CHARA_HEADER + data), False, count == 0,self.version_num)
                 self.characters.append(chara)
                 count += 1
                 #print(f'chara: {chara.lastname} {chara.firstname} ({chara.nickname})')
@@ -55,7 +63,8 @@ class KoikatuSaveData:
 
     def save(self, filename):
         with open(filename, 'wb') as out:
-            out.write(self.b_unknown01)
+            out.write(self.version_length)
+            out.write(self.b_version)
             out.write(self._pack_utf8_string(self.school))
             out.write(self.b_unknown02)
             for chara in self.characters:

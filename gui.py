@@ -46,7 +46,27 @@ class PropertyPanel(ttk.Frame):
         label3.grid(row=row, column=0, sticky='E', columnspan=1)
         entry3.grid(row=row, column=1, sticky='W', columnspan=1)
 
-        if character.sex == 1:
+        if character.sex == 0:
+            label4 = ttk.Label(self, text=RM.res('intellect'))
+            self._intellect = tk.StringVar(value=character.intelligence)
+            entry4 = ttk.Entry(self, textvariable=self._intellect)
+            label4.grid(row=row, column=2, sticky='E', columnspan=1)
+            entry4.grid(row=row, column=3, sticky='W', columnspan=1)
+
+            row = row + 1
+            label5 = ttk.Label(self, text=RM.res('physical'))
+            self._physical = tk.StringVar(value=character.strength)
+            entry5 = ttk.Entry(self, textvariable=self._physical)
+            label5.grid(row=row, column=0, sticky='E', columnspan=1)
+            entry5.grid(row=row, column=1, sticky='W', columnspan=1)
+
+            label6 = ttk.Label(self, text=RM.res('hentai'))
+            self._hentai = tk.StringVar(value=character.ero)
+            entry6 = ttk.Entry(self, textvariable=self._hentai)
+            label6.grid(row=row, column=2, sticky='E', columnspan=1)
+            entry6.grid(row=row, column=3, sticky='W', columnspan=1)
+
+        elif character.sex == 1:
             values = (RM.res('male'), RM.res('female'))
             label4 = ttk.Label(self, text=RM.res('sex'))
             self._sex = tk.StringVar(value=values[character.sex])
@@ -109,10 +129,21 @@ class PropertyPanel(ttk.Frame):
     @property
     def lastname(self):
         return self._lastname.get()
-
+        
     @property
     def nickname(self):
         return self._nickname.get()
+
+    @property
+    def intellect(self):
+        return self._intellect.get()
+    @property
+    def physical(self):
+        return self._physical.get()
+    @property
+    def hentai(self):
+        return self._hentai.get()
+
 
     @property
     def sex(self):
@@ -155,6 +186,12 @@ class PropertyPanel(ttk.Frame):
         self._lastname.set(character.lastname)
         self._nickname.set(character.nickname)
 
+        if character.sex == 0:
+            self._intellect.set(character.intelligence)
+            self._physical.set(character.strength)
+            self._hentai.set(character.ero)
+        
+
         self.personality = character.personality
         self.weak_point = character.weak_point
 
@@ -165,7 +202,7 @@ class PropertyPanel(ttk.Frame):
             self._denials[key].set(character.denials[key])
 
         for key in self._attributes:
-            self._attributes[key].set(character.attributes[key])
+                self._attributes[key].set(character.attributes.setdefault(key,False))
 
 
     def _make_boolean_prop(self, frame, name, value, i, cols):
@@ -197,12 +234,11 @@ class CharacterPanel(ttk.Frame):
                               width=self.image.width(),
                               height=self.image.height())
         self.photo.grid(row=0, column=0, rowspan=3, padx=2, pady=2)
-
         self.property_panel = PropertyPanel(self, character)
         if character.sex == 1:
             self.property_panel.grid(row=0, column=1, rowspan=1, padx=2, pady=2)
             self.status_panel = StatusPanel(self, character)
-            self.status_panel.grid(row=0, column=2, rowspan=1, padx=4, pady=2, sticky='N')
+            self.status_panel.grid(row=1, column=1, rowspan=1, padx=4, pady=2, sticky='N')
         else:
             self.property_panel.grid(row=0, column=1, rowspan=1, columnspan=2, padx=2, pady=2, sticky='W')
 
@@ -221,8 +257,12 @@ class CharacterPanel(ttk.Frame):
         chara.firstname = panel.firstname
         chara.lastname = panel.lastname
         chara.nickname = panel.nickname
+        if chara.sex == 0:
+            chara.intelligence = panel.intellect
+            chara.strength = panel.physical
+            chara.ero = panel.hentai
 
-        if chara.sex == 1:
+        elif chara.sex == 1:
             chara.personality = panel.personality
             chara.weak_point = panel.weak_point
             chara.answers = self.property_panel.answers
@@ -236,6 +276,7 @@ class CharacterPanel(ttk.Frame):
             chara.koikatu = panel.koikatu
             chara.lover = panel.relation
             chara.date = panel.date
+            chara.intimacy = panel.intimacy
 
             ac = [
                 'mune', 'kokan', 'anal', 'siri', 'tikubi',
@@ -279,17 +320,22 @@ class App:
         self.filename = filename
         self.out_filename = out_filename
         self.save_data = KoikatuSaveData(filename)
-        self.card_dir = Path.cwd()
+        try:
+            self.card_dir=get_default_chara_folder()
+        except:
+            self.card_dir=Path.cwd()
 
         style = ttk.Style()
         style.configure('.', padding='2 4 2 4')
-
         frame = VerticalScrolledFrame(self.root)
+
         self.panels = []
+        row_count = 0
         for chara in self.save_data.characters:
-            panel = CharacterPanel(self, frame.interior, chara)
-            panel.pack(anchor='w')
-            self.panels.append(panel)
+                panel = CharacterPanel(self, frame.interior, chara)
+                panel.grid(row=int(row_count/2),column = int(row_count%2))
+                self.panels.append(panel)
+                row_count+=1
 
         btn_frame = ttk.Frame(self.root)
         save_btn = ttk.Button(btn_frame, text='Save & Quit', command=self.save_and_quit)
@@ -297,21 +343,23 @@ class App:
         quit_btn.pack(side='right', pady=2)
         save_btn.pack(side='right', pady=2)
 
+
         frame.grid(row=0, column=0)
         btn_frame.grid(row=1, column=0, pady=2, sticky='E')
 
         y_padding = 4
-        width = 1140
+        width = 1440
         height = 355 * 3 + btn_frame.winfo_height() + y_padding * 2
         WindowsTaskbarHeight=48
         if self.root.winfo_screenheight() - WindowsTaskbarHeight < height:
-            height = int(355 * 2.5) + btn_frame.winfo_height() + y_padding * 2
+            height = int(355 * 2) + btn_frame.winfo_height() + y_padding * 2 
         self.root.geometry(f'{width}x{height}')
+        
+
 
         def _configure(event):
-            fh = self.root.winfo_height() - btn_frame.winfo_height() - y_padding
+            fh = self.root.winfo_height() - btn_frame.winfo_height() - y_padding 
             frame.canvas.config(height=fh)
-
         self.root.bind('<Configure>', _configure)
 
 
@@ -344,7 +392,7 @@ class App:
 
 
 def main():
-    default_resource = Path(sys.argv[0]).parent / 'resources_ja.json'
+    default_resource = Path(sys.argv[0]).parent / 'resources_en.json'
 
     parser = argparse.ArgumentParser()
     parser.add_argument('save_data',
@@ -394,6 +442,12 @@ def get_default_save_folder():
     data, regtype = winreg.QueryValueEx(key, 'INSTALLDIR')
     return data+'UserData\save\game'
 
+def get_default_chara_folder():
+    u"""get default save folder from windows registry """
+    path = r'Software\illusion\Koikatu\koikatu'
+    key = winreg.OpenKeyEx(winreg.HKEY_CURRENT_USER, path)
+    data, regtype = winreg.QueryValueEx(key, 'INSTALLDIR')
+    return data+'UserData\chara'
 
 if __name__ == '__main__':
     try:

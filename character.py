@@ -21,7 +21,8 @@ AC_MAP = [
 
 
 class KoikatuCharacter:
-    def __init__(self, data, with_card=True, skip_additional=False):
+    def __init__(self, data, with_card=True, skip_additional=False,master_version="0.0.0"):
+        self.master_version = master_version
         self.with_card = with_card
         if with_card:
             # read first PNG
@@ -30,7 +31,6 @@ class KoikatuCharacter:
         #  header
         self.product_no = self._read_int(data)
         self.marker = self._read_utf8_string(data)
-
         # version?
         self.unknown01 = self._read_utf8_string(data)
 
@@ -74,6 +74,9 @@ class KoikatuCharacter:
         self.additional = {}
         self.ac = {}
         self.ex_data = b''
+        self.intimacy = 0
+        self.eventAfterDay = 0
+        self.isFirstGirlfriend = False
         if not with_card:
             # additional info
             len1 = self._read_byte(data)
@@ -110,7 +113,6 @@ class KoikatuCharacter:
             self.unknown03 = data.read(1)
 
             self.intelligence = self._read_int(data)
-
             if self.sex == 0:
                 self.strength = self._read_int(data)
                 self._date = 0
@@ -146,7 +148,7 @@ class KoikatuCharacter:
                 self.ac['anal_piston'] = b''
 
             self._read_additional(data)
-
+  
 
     @property
     def firstname(self):
@@ -171,6 +173,30 @@ class KoikatuCharacter:
     @nickname.setter
     def nickname(self, value):
         self.parameter['nickname'] = value
+
+    @property
+    def intelligence(self):
+        return self.parameter['intelligence']
+
+    @intelligence.setter
+    def intelligence(self, value):
+        self.parameter['intelligence'] = value     
+
+    @property
+    def physical(self):
+        return self.parameter['physical']
+
+    @physical.setter
+    def physical(self, value):
+        self.parameter['physical'] = value 
+
+    @property
+    def hentai(self):
+        return self.parameter['hentai']
+
+    @hentai.setter
+    def hentai(self, value):
+        self.parameter['hentai'] = value          
 
     @property
     def sex(self):
@@ -290,9 +316,12 @@ class KoikatuCharacter:
             data = [self.card_png]
 
         if self.sex == 0:
-            bstr = self._pack_int(self.strength)
+            bstr = self._pack_int(int(self.strength))
         else:
             bstr = self._pack_byte(self._date) + b'\x00\x00\x00'
+
+        self.parameter.setdefault('intelligence',0)
+
 
         data += [
             self._pack_int(self.product_no),
@@ -315,9 +344,9 @@ class KoikatuCharacter:
             self._pack_byte(self.lover),
             self._pack_byte(self.anger),
             self.unknown03,
-            self._pack_int(self.intelligence),
+            self._pack_int(int(self.intelligence)),
             bstr,
-            self._pack_int(self.ero),
+            self._pack_int(int(self.ero)),
             self.unknown06,
             self.ac['mune'],
             self.ac['kokan'],
@@ -426,6 +455,9 @@ class KoikatuCharacter:
         if start == -1:
             self.before_additional = chunk
             self.ac['houshi'] = b''
+            self.eventAfterDay = 0
+            self.isFirstGirlfriend = 0
+            self.intimacy = 0
             self.after_additional = b''
             return
 
@@ -445,13 +477,18 @@ class KoikatuCharacter:
                 break
             key = stream.read(len_).decode('ascii')
             value = self._read_int(stream)
-
             self.additional_keys.append(key)
             self.additional[key] = value
 
         self.ac['houshi'] = stream.read(4)
-        self.after_additional = stream.read()
+        if self.master_version >= "0.0.7":
+            self.eventAfterDay = self._read_int(stream)
+            self.isFirstGirlfriend = self._read_byte(stream)
 
+        if self.master_version >= "1.0.1":
+            self.intimacy = self._read_int(stream)
+            
+        self.after_additional = stream.read()
 
     def _pack_additional(self):
         data = [self.before_additional]
@@ -462,6 +499,15 @@ class KoikatuCharacter:
             data.append(self._pack_int(self.additional[key]))
 
         data.append(self.ac['houshi'])
+
+        if self.sex == 1:
+            if self.master_version >= "0.0.7":
+                data.append(self._pack_int(int(self.eventAfterDay)))
+                data.append(self._pack_byte(self.isFirstGirlfriend))
+
+            if self.master_version >= "1.0.1":
+                data.append(self._pack_int(int(self.intimacy)))
+
         data.append(self.after_additional)
         return b''.join(data)
 
@@ -541,6 +587,8 @@ if __name__ == '__main__':
         chara = KoikatuCharacter(infile, True)
 
         pprint.pprint(chara.parameter)
+        pprint.pprint(chara.status)
+        pprint.pprint(chara.face)
         #pprint.pprint(chara.status)
         #pprint.pprint(chara.additional)
 
